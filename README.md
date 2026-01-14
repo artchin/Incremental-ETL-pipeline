@@ -1,2 +1,71 @@
-# Incremental-ETL-pipeline
-Incremental ETL pipeline with CDC (Change Data Capture) for auto listings. SCD Type 2 implementation: tracks new, updated, and deleted records with full history. Python + PostgreSQL.
+# Auto.ru ETL Pipeline
+
+Инкрементальный ETL-процесс с CDC (Change Data Capture) для данных автомобильных объявлений.
+
+## Обзор
+
+Ежедневная загрузка данных с автоматическим определением:
+- ✅ Новых записей
+- ✅ Изменённых записей  
+- ✅ Удалённых записей
+
+Полная история изменений по паттерну **SCD Type 2** (Slowly Changing Dimension).
+
+## Архитектура
+```
+CSV → Staging-таблица → Сравнение с текущим View → Применение изменений → Историческая таблица
+```
+
+| Компонент | Описание |
+|-----------|----------|
+| `tmp_auto` | Staging-таблица для входящих данных |
+| `auto_hist` | Историческая таблица с версионированием |
+| `v_auto` | View для получения актуальных записей |
+
+## Реализация SCD Type 2
+
+Каждая запись содержит:
+- `start_dttm` — начало действия версии
+- `end_dttm` — окончание действия версии (по умолчанию: 5999-12-31)
+- `deleted_flg` — флаг мягкого удаления
+
+## Определение изменений (CDC)
+
+| Тип изменения | Метод определения |
+|---------------|-------------------|
+| Новые | `LEFT JOIN` staging → current, `WHERE current.key IS NULL` |
+| Удалённые | `LEFT JOIN` current → staging, `WHERE staging.key IS NULL` |
+| Изменённые | `INNER JOIN` + сравнение полей (NULL-safe) |
+
+## Стек
+
+| Технология | Назначение |
+|------------|------------|
+| Python | Оркестрация пайплайна |
+| pandas | Обработка CSV |
+| psycopg2 | Подключение к PostgreSQL |
+| SQLAlchemy | ORM для загрузки в staging |
+| PostgreSQL | Хранилище данных |
+
+## Результат
+
+Автоматизирован ежедневный мониторинг изменений цен и статусов объявлений. Аналитики получают полную историю изменений без ручной сверки данных.
+
+## Запуск
+```bash
+pip install -r req.txt
+python app.py
+```
+
+## Конфигурация
+
+Создайте файл `cred.json`:
+```json
+{
+    "host": "localhost",
+    "database": "postgres",
+    "user": "your_user",
+    "password": "your_password",
+    "port": 5432
+}
+```
